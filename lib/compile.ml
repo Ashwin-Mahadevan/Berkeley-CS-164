@@ -108,12 +108,22 @@ let rec compile_exp defns (env : int symtab) (stack_index : int) (exp : s_exp)
             Sub (Reg Rsp, Imm stack_base);
           ]
       else failwith "wrong number of args"
-  | Lst [ Sym "let"; Lst [ Lst [ Sym var; e ] ]; e_body ] ->
-      compile_exp defns env stack_index e false
-      @ [ Mov (stack_offset stack_index, Reg Rax) ]
-      @ compile_exp defns
-          (Symtab.add var stack_index env)
-          (stack_index - 8) e_body is_tail
+  | Lst [ Sym "let"; Lst bindings; body ] ->
+      let bind index = function
+        | Lst [ Sym identifier; expression ] ->
+            let stack_index = stack_index - (index * 8) in
+            let directives =
+              compile_exp defns env stack_index expression false
+              @ [ Mov (stack_offset stack_index, Reg Rax) ]
+            in
+            let binding = Symtab.add identifier stack_index in
+            (directives, binding)
+        | _ -> failwith "invalid binding"
+      in
+      let directives, bindings = List.split (List.mapi bind bindings) in
+      let env = List.fold_left ( |> ) env bindings in
+      let body = compile_exp defns env (stack_index - List.length bindings * 8) body is_tail in
+      List.concat directives @ body
   | Lst [ Sym "add1"; l ] ->
       let p = compile_exp defns env stack_index l false in
       p @ ensure_num (Reg Rax) @ [ Add (Reg Rax, operand_of_num 1) ]

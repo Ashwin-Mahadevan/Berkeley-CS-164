@@ -39,9 +39,15 @@ let rec interp_exp (defns : defn list) (env : value symtab) (exp : s_exp) :
         let fenv = Symtab.of_list pairs in
         interp_exp defns fenv defn.body
       else failwith "wrong number of args"
-  | Lst [ Sym "let"; Lst [ Lst [ Sym var; e ] ]; e_body ] ->
-      let e_value = interp_exp defns env e in
-      interp_exp defns (Symtab.add var e_value env) e_body
+  | Lst [ Sym "let"; Lst bindings; body ] ->
+      let bind = function
+        | Lst [ Sym identifier; expression ] ->
+            let value = interp_exp defns env expression in
+            Symtab.add identifier value
+        | _ -> failwith "invalid binding"
+      in
+      let env = List.fold_left ( |> ) env (List.map bind bindings) in
+      interp_exp defns env body
   | Lst [ Sym "add1"; l ] -> Number (int_of_value (interp_exp defns env l) + 1)
   | Lst [ Sym "sub1"; l ] -> Number (int_of_value (interp_exp defns env l) - 1)
   | Lst [ Sym "not"; l ] ->
