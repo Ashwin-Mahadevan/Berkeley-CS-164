@@ -3,8 +3,4 @@
   acc
   (sum-tail (sub1 n) (+ n acc))))
 
-(print (sum-tail (read-num) 0))
-
-
-
-
+(print (sum-tail 4 0))
