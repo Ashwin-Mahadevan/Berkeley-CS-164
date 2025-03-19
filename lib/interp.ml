@@ -94,9 +94,8 @@ let rec interp_exp (defns : defn list) (env : value symtab) (exp : s_exp) :
   | Lst [ Sym "newline" ] ->
       output_string !output_channel "\n";
       Boolean true
-  | Lst (Sym "do" :: exprs) ->
-      List.map (interp_exp defns env) exprs |> ignore;
-      Boolean true
+  | Lst (Sym "do" :: exprs) when List.length exprs > 0 ->
+      List.rev_map (interp_exp defns env) exprs |> List.hd
   | _ -> raise (Stuck exp)
 
 let interp (program : s_exp list) : unit =

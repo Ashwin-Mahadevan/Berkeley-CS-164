@@ -122,7 +122,11 @@ let rec compile_exp defns (env : int symtab) (stack_index : int) (exp : s_exp)
       in
       let directives, bindings = List.split (List.mapi bind bindings) in
       let env = List.fold_left ( |> ) env bindings in
-      let body = compile_exp defns env (stack_index - List.length bindings * 8) body is_tail in
+      let body =
+        compile_exp defns env
+          (stack_index - (List.length bindings * 8))
+          body is_tail
+      in
       List.concat directives @ body
   | Lst [ Sym "add1"; l ] ->
       let p = compile_exp defns env stack_index l false in
@@ -211,6 +215,7 @@ let rec compile_exp defns (env : int symtab) (stack_index : int) (exp : s_exp)
           Call "print_value";
           Sub (Reg Rsp, Imm (align_stack_index stack_index));
           Mov (Reg Rdi, stack_offset stack_index);
+          Mov (Reg Rax, operand_of_bool true);
         ]
   | Lst (Sym "do" :: exprs) ->
       List.mapi
