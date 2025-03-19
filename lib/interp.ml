@@ -18,8 +18,7 @@ let rec string_of_value (v : value) : string =
 let input_channel = ref stdin
 let output_channel = ref stdout
 
-let rec interp_exp (defns : defn list) (env : value symtab) (exp : s_exp) :
-    value =
+let rec interp_exp defs env exp =
   (* interp2 is a helper to force the evaluation of 2 exprs in order *)
   let interp2 defns env e1 e2 =
     let v1 = interp_exp defns env e1 in
@@ -31,71 +30,72 @@ let rec interp_exp (defns : defn list) (env : value symtab) (exp : s_exp) :
   | Sym "false" -> Boolean false
   | Sym "true" -> Boolean true
   | Sym var -> Symtab.find var env
-  | Lst (Sym f :: args) when is_defn defns f ->
-      let defn = get_defn defns f in
+  | Lst (Sym f :: args) when is_defn defs f ->
+      let defn = get_defn defs f in
       if List.length args = List.length defn.args then
-        let vals = List.map (interp_exp defns env) args in
+        let vals = List.map (interp_exp defs env) args in
         let pairs = List.combine defn.args vals in
         let fenv = Symtab.of_list pairs in
-        interp_exp defns fenv defn.body
+        interp_exp defs fenv defn.body
       else failwith "wrong number of args"
   | Lst [ Sym "let"; Lst bindings; body ] ->
       let bind = function
         | Lst [ Sym identifier; expression ] ->
-            let value = interp_exp defns env expression in
+            let value = interp_exp defs env expression in
             Symtab.add identifier value
         | _ -> failwith "invalid binding"
       in
       let env = List.fold_left ( |> ) env (List.map bind bindings) in
-      interp_exp defns env body
-  | Lst [ Sym "add1"; l ] -> Number (int_of_value (interp_exp defns env l) + 1)
-  | Lst [ Sym "sub1"; l ] -> Number (int_of_value (interp_exp defns env l) - 1)
+      interp_exp defs env body
+  | Lst [ Sym "add1"; l ] -> Number (int_of_value (interp_exp defs env l) + 1)
+  | Lst [ Sym "sub1"; l ] -> Number (int_of_value (interp_exp defs env l) - 1)
   | Lst [ Sym "not"; l ] ->
-      if interp_exp defns env l = Boolean false then Boolean true
+      if interp_exp defs env l = Boolean false then Boolean true
       else Boolean false
   | Lst [ Sym "zero?"; l ] ->
-      if interp_exp defns env l = Number 0 then Boolean true else Boolean false
+      if interp_exp defs env l = Number 0 then Boolean true else Boolean false
   | Lst [ Sym "num?"; l ] -> (
-      match interp_exp defns env l with
+      match interp_exp defs env l with
       | Number _ -> Boolean true
       | _ -> Boolean false)
   | Lst [ Sym "if"; e_cond; e_then; e_else ] ->
-      let v_cond = interp_exp defns env e_cond in
-      if v_cond = Boolean false then interp_exp defns env e_else
-      else interp_exp defns env e_then
-  | Lst [ Sym "+"; e1; e2 ] ->
-      let v1, v2 = interp2 defns env e1 e2 in
-      Number (int_of_value v1 + int_of_value v2)
+      let v_cond = interp_exp defs env e_cond in
+      if v_cond = Boolean false then interp_exp defs env e_else
+      else interp_exp defs env e_then
+  | Lst [ Sym "+"; expr_a; e2 ] -> (
+      match (interp_exp defs env expr_a, interp_exp defs env e2) with
+      | Number n1, Number n2 -> Number (n1 + n2)
+      | _ -> raise (Stuck exp))
   | Lst [ Sym "-"; e1; e2 ] ->
-      let v1, v2 = interp2 defns env e1 e2 in
+      let v1, v2 = interp2 defs env e1 e2 in
       Number (int_of_value v1 - int_of_value v2)
   | Lst [ Sym "="; e1; e2 ] -> (
-      match interp2 defns env e1 e2 with
+      match interp2 defs env e1 e2 with
       | Number n1, Number n2 -> Boolean (n1 = n2)
       | _ -> raise (Stuck exp))
   | Lst [ Sym "<"; e1; e2 ] -> (
-      match interp2 defns env e1 e2 with
+      match interp2 defs env e1 e2 with
       | Number n1, Number n2 -> Boolean (n1 < n2)
       | _ -> raise (Stuck exp))
-  | Lst [ Sym "pair"; e1; e2 ] -> Pair (interp2 defns env e1 e2)
+  | Lst [ Sym "pair"; e1; e2 ] -> Pair (interp2 defs env e1 e2)
   | Lst [ Sym "left"; e ] -> (
-      match interp_exp defns env e with
+      match interp_exp defs env e with
       | Pair (v, _) -> v
       | _ -> failwith "not a pair")
   | Lst [ Sym "right"; e ] -> (
-      match interp_exp defns env e with
+      match interp_exp defs env e with
       | Pair (_, v) -> v
       | _ -> failwith "not a pair")
   | Lst [ Sym "read-num" ] -> Number (input_line !input_channel |> int_of_string)
   | Lst [ Sym "print"; e ] ->
-      let v = interp_exp defns env e in
+      let v = interp_exp defs env e in
       output_string !output_channel (string_of_value v);
       Boolean true
   | Lst [ Sym "newline" ] ->
       output_string !output_channel "\n";
       Boolean true
   | Lst (Sym "do" :: exprs) when List.length exprs > 0 ->
-      List.rev_map (interp_exp defns env) exprs |> List.hd
+      List.rev_map (interp_exp defs env) exprs |> List.hd
   | _ -> raise (Stuck exp)
 
 let interp (program : s_exp list) : unit =
