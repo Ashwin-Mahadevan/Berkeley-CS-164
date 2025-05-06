@@ -25,8 +25,6 @@ let string_of_register ?(byte = false) (reg : register) =
 
 type operand = Reg of register | Imm of int | MemOffset of (operand * operand)
 
-let is_register o = match o with Reg _ -> true | _ -> false
-
 let rec string_of_operand ?(byte = false) = function
   | Reg r -> string_of_register ~byte r
   | Imm i -> string_of_int i
@@ -79,6 +77,8 @@ type directive =
   | Call of string
   | Comment of string
 
+let f (Comment x) = x
+| (_) = "no comment"
 let label_name (macos : bool) (label : string) : string =
   Printf.sprintf (if macos then "_%s" else "%s") label
 
